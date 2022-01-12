@@ -5,6 +5,9 @@ import asyncio
 import json
 
 ITERATIONS_LOOP = 10
+
+# ARDUINO URL: ws://192.168.4.1:1337
+# TEST/PI URL: ws://127.0.0.1:1337
 SERVER_URL = "ws://192.168.4.1:1337"
 
 
@@ -102,41 +105,37 @@ def CalculateVolume(pixel_bot_left, pixel_bot_right, pixel_top_left, pixel_top_r
 
 def default_value(value):
     STANDARDIZATION = 0.9
-    if value >= 42:
+    if value >= 37:
         return 47.5*STANDARDIZATION
-    elif value >= 28 and value <= 45:
+    elif value >= 27 and value <= 37:
         return 30*STANDARDIZATION
-    elif value <= 28 and value >= 23:
-        return 25*STANDARDIZATION
-    elif value <= 23 and value >= 18:
-        return 20*STANDARDIZATION
+    elif value <= 27 and value >= 23:
+        return 10*STANDARDIZATION
+    elif value <= 23 and value >= 15:
+        return 10*STANDARDIZATION
     else:
         # Sends Error to the server
         return 0
-    
 
-
-async def send_websocket(inhoud):
-    async with websockets.connect(SERVER_URL) as ws:
-        payload = {
-            "device": "raspberry",
-            "inhoud": inhoud
-        }
-        
-         # Sends the payload to the server
-        await ws.send(json.dumps(payload))
-        # Waits for response from the server
-        while True:
-            msg = await ws.recv()
-            print(msg)
-            break
-
-async def receive_websocket():
+async def websocket():
     async with websockets.connect(SERVER_URL) as websocket:
         payload = await websocket.recv()
-        start = json.loads(payload)
-        if start["detect"] == True:
-            main()            
+        try:
+            start = json.loads(payload)
+            detection = start["detect"]
+        except:
+            pass
+        else:
+            if detection == True:
+                inhoud = main()
+
+                payload = {
+                    "device": "raspberry",
+                    "inhoud": inhoud
+                }
+
+                # Sends the payload to the server
+                await websocket.send(json.dumps(payload))
 
 def iterations():
     avg_volume = 0
@@ -160,19 +159,19 @@ def iterations():
 def main():
     avg_volume_1 = iterations()
     avg_volume_2 = iterations()
-    if(abs(avg_volume_1 - avg_volume_2) >= 2):
+    if(abs(avg_volume_1 - avg_volume_2) >= 3):
         print("ERROR probeer opnieuw")
         # Sends error to the server
-        asyncio.get_event_loop().run_until_complete(send_websocket(0))
+        return 0
     else:
         volume = (avg_volume_1 + avg_volume_2) /2
         value = default_value(volume)
         # Convert CL to ML
         value = value * 10
         # Sends the corret data to the server
-        asyncio.get_event_loop().run_until_complete(send_websocket(value))
+        return value
 
 
 if __name__ == "__main__":
     while True:
-        asyncio.run(receive_websocket())
+        asyncio.run(websocket())
