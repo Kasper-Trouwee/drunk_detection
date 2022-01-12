@@ -5,7 +5,7 @@ import asyncio
 import json
 
 ITERATIONS_LOOP = 10
-SERVER_URL = "ws://127.0.0.1:7890"
+SERVER_URL = "ws://192.168.4.1:1337"
 
 
 def TakePhoto():
@@ -22,9 +22,9 @@ def EdgeDetection():
     img = cv2.imread('glass.jpg',flags=0)
 
     y=0
-    x=190
-    h=400
-    w=275
+    x=220
+    h=600
+    w=325
     crop = img[y:y+h, x:x+w]
 
 
@@ -102,7 +102,9 @@ def CalculateVolume(pixel_bot_left, pixel_bot_right, pixel_top_left, pixel_top_r
 
 def default_value(value):
     STANDARDIZATION = 0.9
-    if value >= 28:
+    if value >= 42:
+        return 47.5*STANDARDIZATION
+    elif value >= 28 and value <= 45:
         return 30*STANDARDIZATION
     elif value <= 28 and value >= 23:
         return 25*STANDARDIZATION
@@ -129,7 +131,14 @@ async def send_websocket(inhoud):
             print(msg)
             break
 
-def main():
+async def receive_websocket():
+    async with websockets.connect(SERVER_URL) as websocket:
+        payload = await websocket.recv()
+        start = json.loads(payload)
+        if start["detect"] == True:
+            main()            
+
+def iterations():
     avg_volume = 0
     for iteration in range(ITERATIONS_LOOP):
         TakePhoto()
@@ -144,13 +153,13 @@ def main():
         print("ITERATION: " + str(iteration + 1))
         avg_volume = avg_volume + volume
     avg_volume = avg_volume/ITERATIONS_LOOP
-    avg_volume = avg_volume * 5
+    avg_volume = avg_volume * 1.5
     print("=====AVG VOLUME=====\n" + str(avg_volume))
     return avg_volume
 
-if __name__ == "__main__":
-    avg_volume_1 = main()
-    avg_volume_2 = main()
+def main():
+    avg_volume_1 = iterations()
+    avg_volume_2 = iterations()
     if(abs(avg_volume_1 - avg_volume_2) >= 2):
         print("ERROR probeer opnieuw")
         # Sends error to the server
@@ -162,3 +171,8 @@ if __name__ == "__main__":
         value = value * 10
         # Sends the corret data to the server
         asyncio.get_event_loop().run_until_complete(send_websocket(value))
+
+
+if __name__ == "__main__":
+    while True:
+        asyncio.run(receive_websocket())
